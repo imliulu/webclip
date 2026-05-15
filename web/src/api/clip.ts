@@ -90,11 +90,14 @@ export interface Message {
   content: string
   contentType: string
   createdAt: string
+  fileName?: string
+  fileSize?: number
+  fileKey?: string
 }
 
-export async function listMessages(code: string, beforeId = 0, limit = 50) {
+export async function listMessages(code: string, beforeId = 0, limit = 50, contentType?: string) {
   const { data } = await http.get(`/clip/${code}/messages`, {
-    params: { beforeId, limit },
+    params: { beforeId, limit, contentType },
   })
   return data.data as { items: Message[]; hasMore: boolean }
 }
@@ -107,4 +110,25 @@ export async function sendMessage(code: string, content: string, contentType = '
 export async function deleteMessage(code: string, id: number) {
   const { data } = await http.delete(`/clip/${code}/messages/${id}`)
   return data.data as { id: number; deleted: boolean }
+}
+
+// ---- 文件接口 ----
+
+export async function uploadFile(code: string, file: File) {
+  const store = useRoomStore()
+  const token = store.getToken(code)
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await http.post(`/clip/${code}/files/upload`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+  return data.data as Message
+}
+
+export async function getFileDownloadUrl(code: string, messageId: number) {
+  const { data } = await http.get(`/clip/${code}/messages/${messageId}/download`)
+  return data.data as { downloadUrl: string; fileName: string }
 }

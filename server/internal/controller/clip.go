@@ -1,13 +1,18 @@
 package controller
 
 import (
+	"crypto/rand"
 	"errors"
+	"fmt"
 	"net/http"
+	"path/filepath"
 	"strings"
 
+	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 
 	"webclip/server/internal/logic/clip"
+	"webclip/server/internal/logic/storage"
 )
 
 // Clip REST 控制器
@@ -257,7 +262,7 @@ func (c *Clip) Delete(r *ghttp.Request) {
 
 // ---- 消息接口 ----
 
-// ListMessages GET /api/clip/{code}/messages?beforeId=&limit=
+// ListMessages GET /api/clip/{code}/messages?beforeId=&limit=&contentType=
 func (c *Clip) ListMessages(r *ghttp.Request) {
 	code := r.Get("code").String()
 	ctx := r.Context()
@@ -273,19 +278,26 @@ func (c *Clip) ListMessages(r *ghttp.Request) {
 	if limit <= 0 {
 		limit = 50
 	}
-	list, err := clip.ListMessages(ctx, code, beforeId, limit)
+	contentType := r.Get("contentType").String()
+	list, err := clip.ListMessages(ctx, code, beforeId, limit, contentType)
 	if err != nil {
 		mapErr(r, err)
 		return
 	}
 	items := make([]map[string]interface{}, 0, len(list))
 	for _, m := range list {
-		items = append(items, map[string]interface{}{
+		item := map[string]interface{}{
 			"id":          m.Id,
 			"content":     m.Content,
 			"contentType": m.ContentType,
 			"createdAt":   m.CreatedAt,
-		})
+		}
+		if m.ContentType == "file" {
+			item["fileName"] = m.FileName
+			item["fileSize"] = m.FileSize
+			item["fileKey"] = m.FileKey
+		}
+		items = append(items, item)
 	}
 	writeOK(r, map[string]interface{}{
 		"items":   items,
@@ -342,4 +354,117 @@ func (c *Clip) DeleteMessage(r *ghttp.Request) {
 		return
 	}
 	writeOK(r, map[string]interface{}{"id": id, "deleted": true})
+}
+
+// ---- 文件接口 ----
+
+// PresignDownload GET /api/clip/{code}/messages/{id}/download
+func (c *Clip) PresignDownload(r *ghttp.Request) {
+	code := r.Get("code").String()
+	id := r.Get("id").Int64()
+	ctx := r.Context()
+
+	tokenStr := bearerToken(r)
+	tokCode, err := clip.VerifyToken(ctx, tokenStr)
+	if err != nil || tokCode != code {
+		writeErr(r, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if storage.Default == nil {
+		writeErr(r, http.StatusServiceUnavailable, "file sharing is not enabled")
+		return
+	}
+
+	msg, err := clip.GetMessage(ctx, code, id)
+	if err != nil {
+		mapErr(r, err)
+		return
+	}
+	if msg.FileKey == "" {
+		writeErr(r, http.StatusBadRequest, "not a file message")
+		return
+	}
+
+	downloadURL, err := storage.Default.PresignGetURL(ctx, msg.FileKey)
+	if err != nil {
+		g.Log().Errorf(ctx, "presign download failed: %v", err)
+		writeErr(r, http.StatusInternalServerError, "failed to generate download url: "+err.Error())
+		return
+	}
+
+	writeOK(r, map[string]interface{}{
+		"downloadUrl": downloadURL,
+		"fileName":    msg.FileName,
+	})
+}
+
+// UploadFile POST /api/clip/{code}/files/upload
+// 后端代理上传：前端将文件发送到后端，后端转存到对象存储，避免 CORS 问题
+func (c *Clip) UploadFile(r *ghttp.Request) {
+	code := r.Get("code").String()
+	ctx := r.Context()
+
+	tokenStr := bearerToken(r)
+	tokCode, err := clip.VerifyToken(ctx, tokenStr)
+	if err != nil || tokCode != code {
+		writeErr(r, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if storage.Default == nil {
+		writeErr(r, http.StatusServiceUnavailable, "file sharing is not enabled")
+		return
+	}
+
+	// 从 multipart form 获取文件
+	file, fileHeader, err := r.FormFile("file")
+	if err != nil {
+		writeErr(r, http.StatusBadRequest, "file field is required")
+		return
+	}
+	defer file.Close()
+
+	if fileHeader.Size > storage.Default.MaxFileSize() {
+		writeErr(r, http.StatusRequestEntityTooLarge, "file too large")
+		return
+	}
+
+	// 生成唯一 key
+	randSuffix := make([]byte, 8)
+	_, _ = rand.Read(randSuffix)
+	ext := filepath.Ext(fileHeader.Filename)
+	if ext == "" {
+		ext = ".bin"
+	}
+	fileKey := fmt.Sprintf("webclip/%s/%x%s", code, randSuffix, ext)
+
+	// 获取 contentType
+	contentType := fileHeader.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	// 上传到对象存储
+	if err := storage.Default.PutObject(ctx, fileKey, file, fileHeader.Size, contentType); err != nil {
+		g.Log().Errorf(ctx, "file upload to storage failed: %v", err)
+		writeErr(r, http.StatusInternalServerError, "file upload failed: "+err.Error())
+		return
+	}
+
+	// 创建文件消息
+	msg, err := clip.CreateFileMessage(ctx, code, fileKey, fileHeader.Filename, fileHeader.Size, "file")
+	if err != nil {
+		mapErr(r, err)
+		return
+	}
+
+	writeOK(r, map[string]interface{}{
+		"id":          msg.Id,
+		"fileName":    msg.FileName,
+		"fileSize":    msg.FileSize,
+		"fileKey":     msg.FileKey,
+		"contentType": msg.ContentType,
+		"createdAt":   msg.CreatedAt,
+	})
 }

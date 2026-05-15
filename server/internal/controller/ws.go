@@ -26,6 +26,9 @@ type wsIn struct {
 	Content     string `json:"content,omitempty"`
 	ContentType string `json:"contentType,omitempty"`
 	Id          int64  `json:"id,omitempty"`
+	FileKey     string `json:"fileKey,omitempty"`
+	FileName    string `json:"fileName,omitempty"`
+	FileSize    int64  `json:"fileSize,omitempty"`
 }
 
 // wsMessagePayload 消息负载
@@ -34,6 +37,9 @@ type wsMessagePayload struct {
 	Content     string      `json:"content"`
 	ContentType string      `json:"contentType"`
 	CreatedAt   interface{} `json:"createdAt"`
+	FileName    string      `json:"fileName,omitempty"`
+	FileSize    int64       `json:"fileSize,omitempty"`
+	FileKey     string      `json:"fileKey,omitempty"`
 }
 
 // wsOut 服务端 -> 客户端
@@ -161,6 +167,30 @@ func (h *WS) Handle(r *ghttp.Request) {
 				From:    client.ID,
 			})
 			// 广播给其他人 + 回显给发送者（带 from=自身，前端可识别）
+			hub.Default.Broadcast(code, client, out)
+			sendBytes(client, out)
+
+		case "send_file":
+			msg, err := clip.CreateFileMessage(ctx, code, m.FileKey, m.FileName, m.FileSize, "file")
+			if err != nil {
+				out, _ := json.Marshal(wsOut{Type: "error", Error: err.Error()})
+				sendBytes(client, out)
+				continue
+			}
+			payload := &wsMessagePayload{
+				Id:          msg.Id,
+				Content:     msg.Content,
+				ContentType: msg.ContentType,
+				CreatedAt:   msg.CreatedAt,
+				FileName:    msg.FileName,
+				FileSize:    msg.FileSize,
+				FileKey:     msg.FileKey,
+			}
+			out, _ := json.Marshal(wsOut{
+				Type:    "message_created",
+				Message: payload,
+				From:    client.ID,
+			})
 			hub.Default.Broadcast(code, client, out)
 			sendBytes(client, out)
 

@@ -17,6 +17,17 @@ logger:
   stdout: true
 
 webclip:
-  jwtSecret: "webclip-dev-secret-change-me"
+  jwtSecret: "123456"
   tokenExpireHours: 2
-  ttlDays: 7
+  ttlDays: 1
+
+s3:
+  vendor: "cos"                                                   # cos=腾讯云COS, 留空或aws=AWS/MinIO
+  endpoint: "https://cos.ap-shanghai.myqcloud.com"               # COS 填 https://cos.{region}.myqcloud.com，MinIO 填 http://minio:9000
+  region: "ap-shanghai"
+  bucket: "liulu-1305533294"
+  accessKey: ""
+  secretKey: ""
+  pathStyle: false            # MinIO 需 true，COS/AWS 需 false
+  publicUrl: "https://liulu-1305533294.cos.ap-shanghai.myqcloud.com"       # 可选，自定义下载域名（如 CDN）
+  maxFileSize: 524288000  # 500MB

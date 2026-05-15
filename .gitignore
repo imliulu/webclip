@@ -13,3 +13,9 @@ web/dist/
 *.swp
 .idea/
 .vscode/
+
+# Sensitive config overrides
+server/manifest/config/config.prod.yaml
+server/manifest/config/config.*.local.yaml
+.env
+.env.*

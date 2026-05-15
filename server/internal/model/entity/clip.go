@@ -22,5 +22,8 @@ type ClipMessage struct {
 	ClipCode    string      `json:"clipCode"     orm:"clip_code"`
 	Content     string      `json:"content"      orm:"content"`
 	ContentType string      `json:"contentType"  orm:"content_type"`
+	FileName    string      `json:"fileName"     orm:"file_name"`
+	FileSize    int64       `json:"fileSize"     orm:"file_size"`
+	FileKey     string      `json:"fileKey"      orm:"file_key"`
 	CreatedAt   *gtime.Time `json:"createdAt"    orm:"created_at"`
 }

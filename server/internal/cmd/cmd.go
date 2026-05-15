@@ -13,6 +13,7 @@ import (
 
 	"webclip/server/internal/controller"
 	"webclip/server/internal/logic/clip"
+	"webclip/server/internal/logic/storage"
 )
 
 // Main 是程序主入口命令
@@ -29,6 +30,16 @@ var Main = gcmd.Command{
 		// 初始化数据库表结构
 		if err = clip.Migrate(ctx); err != nil {
 			return err
+		}
+
+		// 初始化对象存储（未配置时 Default 为 nil，不影响文本功能）
+		store, storeErr := storage.NewStorage(ctx)
+		if storeErr != nil {
+			g.Log().Warningf(ctx, "storage init failed: %v, file sharing disabled", storeErr)
+		}
+		if store != nil {
+			storage.Default = store
+			g.Log().Info(ctx, "file storage enabled")
 		}
 
 		// 每 10 分钟清理过期数据
@@ -55,6 +66,8 @@ var Main = gcmd.Command{
 			group.GET("/clip/{code}/messages", clipCtl.ListMessages)
 			group.POST("/clip/{code}/messages", clipCtl.CreateMessage)
 			group.DELETE("/clip/{code}/messages/{id}", clipCtl.DeleteMessage)
+			group.POST("/clip/{code}/files/upload", clipCtl.UploadFile)
+			group.GET("/clip/{code}/messages/{id}/download", clipCtl.PresignDownload)
 			group.GET("/ws/{code}", wsCtl.Handle)
 		})
 

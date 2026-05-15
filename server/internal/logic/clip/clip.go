@@ -15,6 +15,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 
+	"webclip/server/internal/logic/storage"
 	"webclip/server/internal/model/entity"
 )
 
@@ -67,6 +68,16 @@ CREATE INDEX IF NOT EXISTS idx_msg_code_id ON clip_message(clip_code, id DESC);
 	}
 	// 兼容旧版本：若 name 列不存在则补建
 	if err := ensureColumn(ctx, "clip", "name", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
+	// 兼容旧版本：文件相关列
+	if err := ensureColumn(ctx, "clip_message", "file_name", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := ensureColumn(ctx, "clip_message", "file_size", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+	if err := ensureColumn(ctx, "clip_message", "file_key", "TEXT NOT NULL DEFAULT ''"); err != nil {
 		return err
 	}
 	return nil
@@ -307,6 +318,18 @@ func CleanExpired(ctx context.Context) error {
 		codes = append(codes, row["code"].String())
 	}
 	if len(codes) > 0 {
+		// 清理 S3 对象：查 file_key 非空的消息
+		if storage.Default != nil {
+			fileRows, fErr := g.DB().Model(tableMessage).Ctx(ctx).
+				Fields("file_key").WhereIn("clip_code", codes).Where("file_key != ?", "").All()
+			if fErr == nil {
+				for _, row := range fileRows {
+					if key := row["file_key"].String(); key != "" {
+						_ = storage.Default.DeleteObject(ctx, key)
+					}
+				}
+			}
+		}
 		_, _ = g.DB().Model(tableMessage).Ctx(ctx).
 			WhereIn("clip_code", codes).Delete()
 	}
@@ -380,8 +403,8 @@ func Delete(ctx context.Context, code string) error {
 
 // ---- 消息上下文 ----
 
-// ListMessages 按 id 降序获取消息。beforeId<=0 表示最新一页。
-func ListMessages(ctx context.Context, code string, beforeId int64, limit int) ([]*entity.ClipMessage, error) {
+// ListMessages 按 id 降序获取消息。beforeId<=0 表示最新一页。contentType 非空时过滤。
+func ListMessages(ctx context.Context, code string, beforeId int64, limit int, contentType ...string) ([]*entity.ClipMessage, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
@@ -391,6 +414,9 @@ func ListMessages(ctx context.Context, code string, beforeId int64, limit int) (
 	m := g.DB().Model(tableMessage).Ctx(ctx).Where("clip_code", code)
 	if beforeId > 0 {
 		m = m.Where("id < ?", beforeId)
+	}
+	if len(contentType) > 0 && contentType[0] != "" {
+		m = m.Where("content_type", contentType[0])
 	}
 	var list []*entity.ClipMessage
 	if err := m.Order("id DESC").Limit(limit).Scan(&list); err != nil {
@@ -402,6 +428,22 @@ func ListMessages(ctx context.Context, code string, beforeId int64, limit int) (
 // CountMessages 计算房间消息总数
 func CountMessages(ctx context.Context, code string) (int, error) {
 	return g.DB().Model(tableMessage).Ctx(ctx).Where("clip_code", code).Count()
+}
+
+// GetMessage 获取单条消息
+func GetMessage(ctx context.Context, code string, id int64) (*entity.ClipMessage, error) {
+	one, err := g.DB().Model(tableMessage).Ctx(ctx).Where("id", id).Where("clip_code", code).One()
+	if err != nil {
+		return nil, err
+	}
+	if one.IsEmpty() {
+		return nil, ErrNotFound
+	}
+	var m entity.ClipMessage
+	if err = one.Struct(&m); err != nil {
+		return nil, err
+	}
+	return &m, nil
 }
 
 // CreateMessage 创建一条消息，同时刷新房间过期时间与更新时间
@@ -440,18 +482,64 @@ func CreateMessage(ctx context.Context, code, content, contentType string) (*ent
 	}, nil
 }
 
-// DeleteMessage 删除一条消息
+// CreateFileMessage 创建一条文件消息，同时刷新房间过期时间与更新时间
+func CreateFileMessage(ctx context.Context, code, fileKey, fileName string, fileSize int64, contentType string) (*entity.ClipMessage, error) {
+	if contentType == "" {
+		contentType = "file"
+	}
+	if _, err := GetByCode(ctx, code); err != nil {
+		return nil, err
+	}
+	now := gtime.Now()
+	res, err := g.DB().Model(tableMessage).Ctx(ctx).Data(g.Map{
+		"clip_code":    code,
+		"content":      fileKey, // file 类型 content 存 S3 key
+		"content_type": contentType,
+		"file_name":    fileName,
+		"file_size":    fileSize,
+		"file_key":     fileKey,
+		"created_at":   now,
+	}).Insert()
+	if err != nil {
+		return nil, err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+	// 刷新房间过期时间与 updated_at
+	_, _ = g.DB().Model(tableClip).Ctx(ctx).Data(g.Map{
+		"expire_at":  ttl(ctx),
+		"updated_at": now,
+	}).Where("code", code).Update()
+	return &entity.ClipMessage{
+		Id:          id,
+		ClipCode:    code,
+		Content:     fileKey,
+		ContentType: contentType,
+		FileName:    fileName,
+		FileSize:    fileSize,
+		FileKey:     fileKey,
+		CreatedAt:   now,
+	}, nil
+}
+
+// DeleteMessage 删除一条消息；若是文件消息则同时清理 S3 对象
 func DeleteMessage(ctx context.Context, code string, id int64) error {
 	if _, err := GetByCode(ctx, code); err != nil {
 		return err
 	}
-	cnt, err := g.DB().Model(tableMessage).Ctx(ctx).
-		Where("id", id).Where("clip_code", code).Count()
+	// 先查记录，若含 file_key 则清理 S3
+	one, err := g.DB().Model(tableMessage).Ctx(ctx).
+		Fields("id, file_key").Where("id", id).Where("clip_code", code).One()
 	if err != nil {
 		return err
 	}
-	if cnt == 0 {
+	if one.IsEmpty() {
 		return ErrNotFound
+	}
+	if fileKey := one["file_key"].String(); fileKey != "" && storage.Default != nil {
+		_ = storage.Default.DeleteObject(ctx, fileKey)
 	}
 	_, err = g.DB().Model(tableMessage).Ctx(ctx).
 		Where("id", id).Where("clip_code", code).Delete()
