@@ -1,0 +1,15 @@
+# Go build output
+server/.build/
+server/webclip
+server/data/
+server/resource/public/assets/
+
+# Node
+web/node_modules/
+web/dist/
+
+# Editor
+.DS_Store
+*.swp
+.idea/
+.vscode/

@@ -1,0 +1,4 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #f9fafb; color: #111; }
+body { font-family: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, "PingFang SC", "Microsoft YaHei", sans-serif; }
+a { color: inherit; }

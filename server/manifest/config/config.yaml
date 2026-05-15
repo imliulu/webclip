@@ -1,0 +1,22 @@
+# WebClip server config
+server:
+  address: ":8080"
+  serverRoot: "resource/public"
+  dumpRouterMap: true
+  logPath: "./data/logs"
+  sessionPath: "./data/sessions"
+
+database:
+  default:
+    type: "sqlite"
+    name: "./data/webclip.db"
+    debug: false
+
+logger:
+  level: "all"
+  stdout: true
+
+webclip:
+  jwtSecret: "webclip-dev-secret-change-me"
+  tokenExpireHours: 2
+  ttlDays: 7

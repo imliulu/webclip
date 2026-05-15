@@ -1,0 +1,21 @@
+# 通用
+.git
+.gitignore
+.idea
+.vscode
+*.log
+.DS_Store
+README.md
+Dockerfile
+.dockerignore
+
+# 前端构建输出 / 依赖
+web/node_modules
+web/dist
+web/.vite
+
+# 后端构建产物 / 数据 / 缓存
+server/.build
+server/data
+server/resource/public
+server/scripts
