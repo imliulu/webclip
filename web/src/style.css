@@ -1,4 +1,122 @@
+/* ============================================================
+   WebClip — Modern SaaS theme
+   浅色表面 · 靛蓝主色 · 柔和阴影 · Inter 字体
+   ============================================================ */
+
+:root {
+  /* —— 表面 —— */
+  --bg:           #f6f7f9;   /* 页面底色 */
+  --surface:      #ffffff;   /* 卡片 / 弹层 */
+  --surface-2:    #f1f3f6;   /* 次级填充（hover / 输入） */
+  --surface-3:    #e9edf2;   /* 更深的填充 */
+
+  /* —— 文字 —— */
+  --text:         #0f172a;   /* 主文字 */
+  --text-soft:    #475569;   /* 次级文字 */
+  --text-faint:   #94a3b8;   /* 弱文字 / 占位 */
+
+  /* —— 品牌色（靛蓝） —— */
+  --primary:      #4f46e5;
+  --primary-hover:#4338ca;
+  --primary-soft: #eef2ff;
+  --primary-ring: rgba(79, 70, 229, 0.30);
+
+  /* —— 语义色 —— */
+  --success:      #16a34a;
+  --success-soft: #ecfdf3;
+  --danger:       #e11d48;
+  --danger-hover: #be123c;
+  --danger-soft:  #fff1f3;
+
+  /* —— 边框 —— */
+  --border:       #e5e8ec;
+  --border-strong:#cbd5e1;
+
+  /* —— 阴影（柔和、分层） —— */
+  --shadow-xs:    0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-sm:    0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow:       0 4px 14px rgba(15, 23, 42, 0.08);
+  --shadow-md:    0 8px 24px rgba(15, 23, 42, 0.10);
+  --shadow-lg:    0 18px 44px rgba(15, 23, 42, 0.16);
+  --shadow-primary: 0 8px 22px rgba(79, 70, 229, 0.28);
+
+  /* —— 圆角 —— */
+  --radius-sm:    8px;
+  --radius:       12px;
+  --radius-lg:    16px;
+  --radius-full:  999px;
+
+  /* —— 字体 —— */
+  --font-sans: "Inter", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", "PingFang SC", monospace;
+}
+
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; background: #f9fafb; color: #111; }
-body { font-family: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, "PingFang SC", "Microsoft YaHei", sans-serif; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  color: var(--text);
+  background-color: var(--bg);
+  /* 顶部一抹靛蓝光晕，低调而现代 */
+  background-image:
+    radial-gradient(1100px 520px at 50% -240px, rgba(79, 70, 229, 0.07), transparent 70%);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
 a { color: inherit; }
+
+/* —— 文本选区 —— */
+::selection { background: var(--primary-soft); color: var(--primary-hover); }
+
+/* —— 滚动条 —— */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-full);
+  border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+
+/* ============================================================
+   共享动画 —— 轻盈入场
+   ============================================================ */
+@keyframes wc-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes wc-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes wc-pop {
+  0%   { opacity: 0; transform: scale(0.96) translateY(6px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes wc-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.3; }
+}
+@keyframes wc-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

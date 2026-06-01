@@ -212,41 +212,64 @@ onMounted(loadList)
 
 <template>
   <div class="home">
+    <!-- 顶部品牌栏 -->
     <header class="topbar">
       <div class="brand">
-        <h1>WebClip</h1>
-        <p class="sub">通过 6 位短码跨设备共享剪贴内容，支持多端实时同步</p>
+        <div class="logo-mark" aria-hidden="true">
+          <span class="logo-bar"></span>
+          <span class="logo-bar"></span>
+          <span class="logo-bar"></span>
+        </div>
+        <div class="brand-text">
+          <h1>WEBCLIP<span class="brand-dot">.</span></h1>
+          <p class="sub">// 6 位短码 · 跨设备共享 · 多端实时同步</p>
+        </div>
       </div>
       <div class="actions">
         <button class="btn ghost" @click="openJoin">加入房间</button>
-        <button class="btn primary" @click="openCreate">+ 创建房间</button>
+        <button class="btn primary" @click="openCreate">＋ 创建房间</button>
       </div>
     </header>
 
+    <!-- 房间清单 -->
     <section class="rooms">
       <div class="rooms-head">
-        <h2>所有房间</h2>
-        <span class="meta">公开 {{ publicCount }} · 私有 {{ privateCount }}</span>
+        <h2><span class="hash">#</span> 所有房间</h2>
+        <span class="meta">
+          <span class="tally pub">公开 {{ publicCount }}</span>
+          <span class="tally priv">私有 {{ privateCount }}</span>
+        </span>
         <button class="btn outline refresh" @click="loadList" :disabled="listLoading">
-          {{ listLoading ? '加载中…' : '刷新' }}
+          {{ listLoading ? '加载中…' : '↻ 刷新' }}
         </button>
       </div>
-      <p v-if="listError" class="err">{{ listError }}</p>
+
+      <p v-if="listError" class="err banner">{{ listError }}</p>
       <p v-else-if="!listLoading && rooms.length === 0" class="empty">
-        暂无房间，点击右上角"创建房间"开始
+        <span class="empty-mark">∅</span>
+        暂无房间 — 点击右上角「创建房间」开始
       </p>
+
       <ul v-else class="room-list">
-        <li v-for="r in rooms" :key="r.code" class="room-item">
-          <div class="ri-main">
+        <li
+          v-for="(r, i) in rooms"
+          :key="r.code"
+          class="room-item"
+          :style="{ animationDelay: Math.min(i, 12) * 40 + 'ms' }"
+          @click="enterRoom(r)"
+        >
+          <div class="ri-left">
             <span class="ri-code">{{ r.code }}</span>
-            <span class="ri-name">{{ r.name || '未命名' }}</span>
             <span class="badge" :class="r.hasPassword ? 'priv' : 'pub'">
               {{ r.hasPassword ? '🔒 私有' : '🌐 公开' }}
             </span>
           </div>
-          <div class="ri-meta">更新于 {{ formatTime(r.updatedAt) }}</div>
-          <div class="ri-actions">
-            <button class="btn outline" @click="enterRoom(r)">进入</button>
+          <div class="ri-body">
+            <span class="ri-name">{{ r.name || '未命名' }}</span>
+            <span class="ri-meta">更新于 {{ formatTime(r.updatedAt) }}</span>
+          </div>
+          <div class="ri-actions" @click.stop>
+            <button class="btn outline" @click="enterRoom(r)">进入 →</button>
             <button class="btn outline" @click="openEdit(r)">修改</button>
             <button class="btn outline danger" @click="openDelete(r)">删除</button>
           </div>
@@ -257,7 +280,7 @@ onMounted(loadList)
     <!-- 创建对话框 -->
     <div v-if="createState.open" class="modal-mask" @click.self="closeCreate">
       <div class="modal">
-        <h3>创建新房间</h3>
+        <h3><span class="m-tag">NEW</span> 创建新房间</h3>
         <label>
           <span>房间名称（可留空）</span>
           <input v-model="createState.name" maxlength="30" placeholder="给房间起个名字，便于识别"
@@ -282,7 +305,7 @@ onMounted(loadList)
     <!-- 加入对话框 -->
     <div v-if="joinState.open" class="modal-mask" @click.self="closeJoin">
       <div class="modal">
-        <h3>加入已有房间</h3>
+        <h3><span class="m-tag">JOIN</span> 加入已有房间</h3>
         <label>
           <span>6 位短码</span>
           <input
@@ -304,7 +327,7 @@ onMounted(loadList)
     <!-- 编辑对话框 -->
     <div v-if="edit.open" class="modal-mask" @click.self="closeEdit">
       <div class="modal">
-        <h3>修改房间 <span class="code-tag">{{ edit.room?.code }}</span></h3>
+        <h3><span class="m-tag">EDIT</span> 修改房间 <span class="code-tag">{{ edit.room?.code }}</span></h3>
         <label>
           <span>房间名称</span>
           <input v-model="edit.name" maxlength="30" placeholder="房间名称" />
@@ -334,7 +357,7 @@ onMounted(loadList)
     <!-- 删除对话框（二次确认） -->
     <div v-if="del.open" class="modal-mask" @click.self="closeDelete">
       <div class="modal">
-        <h3>删除房间</h3>
+        <h3><span class="m-tag danger">DEL</span> 删除房间</h3>
         <p class="warn">
           确定要删除房间
           <span class="code-tag">{{ del.room?.code }}</span>
@@ -358,78 +381,241 @@ onMounted(loadList)
 </template>
 
 <style scoped>
-.home { max-width: 960px; margin: 32px auto; padding: 0 16px; }
+.home {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 56px 20px 80px;
+}
 
-/* 顶部栏 */
+/* ===== 顶部品牌栏 ===== */
 .topbar {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 16px; margin-bottom: 24px; flex-wrap: wrap;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 40px;
+  flex-wrap: wrap;
+  animation: wc-rise 0.5s both;
 }
-.brand h1 { margin: 0 0 4px; font-size: 26px; font-weight: 600; }
-.brand .sub { margin: 0; color: #6b7280; font-size: 13px; }
-.actions { display: flex; gap: 8px; }
+.brand { display: flex; align-items: center; gap: 14px; }
+.logo-mark {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 10px;
+  width: 44px; height: 44px;
+  align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--primary), #7c6cf0);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-primary);
+}
+.logo-bar { display: block; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, 0.95); }
+.logo-bar:nth-child(1) { width: 20px; }
+.logo-bar:nth-child(2) { width: 12px; background: rgba(255, 255, 255, 0.7); }
+.logo-bar:nth-child(3) { width: 16px; }
+.brand-text h1 {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+  line-height: 1.1;
+}
+.brand-dot { color: var(--primary); }
+.brand .sub {
+  margin: 3px 0 0;
+  color: var(--text-faint);
+  font-size: 13px;
+  letter-spacing: 0;
+}
+.actions { display: flex; gap: 10px; }
 
-/* 通用按钮 */
-.btn { padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; border: 1px solid transparent; transition: background .15s, border-color .15s, color .15s; }
-.btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.btn.primary { background: #2563eb; color: white; }
-.btn.primary:hover:not(:disabled) { background: #1d4ed8; }
-.btn.ghost { background: white; color: #374151; border-color: #d1d5db; }
-.btn.ghost:hover:not(:disabled) { background: #f3f4f6; }
-.btn.outline { background: white; color: #111; border-color: #d1d5db; padding: 6px 12px; font-size: 13px; font-weight: 400; }
-.btn.outline:hover:not(:disabled) { background: #f3f4f6; }
-.btn.outline.danger { color: #dc2626; border-color: #fecaca; }
-.btn.outline.danger:hover:not(:disabled) { background: #fef2f2; }
-.btn.danger-solid { background: #dc2626; color: white; }
-.btn.danger-solid:hover:not(:disabled) { background: #b91c1c; }
+/* ===== 通用按钮 ===== */
+.btn {
+  font-family: var(--font-sans);
+  padding: 9px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition: background .15s, border-color .15s, box-shadow .15s, transform .05s, color .15s;
+}
+.btn:hover:not(:disabled) { background: var(--surface-2); border-color: var(--border-strong); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn.primary {
+  background: var(--primary); color: #fff; border-color: transparent;
+  box-shadow: var(--shadow-sm);
+}
+.btn.primary:hover:not(:disabled) { background: var(--primary-hover); }
+.btn.ghost { background: var(--surface); }
+.btn.outline {
+  padding: 6px 12px; font-size: 13px;
+}
+.btn.outline.danger { color: var(--danger); border-color: var(--border); }
+.btn.outline.danger:hover:not(:disabled) { background: var(--danger-soft); border-color: var(--danger); color: var(--danger); }
+.btn.danger-solid { background: var(--danger); color: #fff; border-color: transparent; }
+.btn.danger-solid:hover:not(:disabled) { background: var(--danger-hover); }
 
-/* 房间列表 */
-.rooms { background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 24px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04); }
-.rooms-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.rooms-head h2 { margin: 0; font-size: 18px; font-weight: 500; }
-.rooms-head .meta { color: #6b7280; font-size: 13px; }
+/* ===== 房间清单 ===== */
+.rooms { animation: wc-rise 0.5s both 0.08s; }
+.rooms-head {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 18px; flex-wrap: wrap;
+}
+.rooms-head h2 {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 17px; font-weight: 650;
+}
+.rooms-head .hash { color: var(--text-faint); font-weight: 500; }
+.rooms-head .meta { display: flex; gap: 8px; }
+.tally {
+  font-size: 12px; font-weight: 600; padding: 3px 10px;
+  border: 1px solid var(--border); border-radius: var(--radius-full);
+  color: var(--text-soft); background: var(--surface);
+}
+.tally.pub { background: var(--success-soft); color: var(--success); border-color: transparent; }
+.tally.priv { background: var(--primary-soft); color: var(--primary-hover); border-color: transparent; }
 .rooms-head .refresh { margin-left: auto; }
-.empty { color: #6b7280; text-align: center; padding: 32px 0; }
-.room-list { list-style: none; padding: 0; margin: 0; }
-.room-item { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: 4px 12px; padding: 14px 0; border-top: 1px solid #f3f4f6; align-items: center; }
-.room-item:first-child { border-top: none; }
-.ri-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.ri-code { font-family: ui-monospace, monospace; background: #f3f4f6; padding: 3px 10px; border-radius: 4px; letter-spacing: 2px; font-weight: 600; font-size: 13px; }
-.ri-name { font-weight: 500; color: #111827; }
-.ri-meta { grid-column: 1; color: #9ca3af; font-size: 12px; }
-.ri-actions { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 6px; }
-.badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; }
-.badge.pub { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
-.badge.priv { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
 
-.err { color: #dc2626; margin: 8px 0; font-size: 13px; }
+.banner {
+  border: 1px solid var(--danger);
+  color: var(--danger-hover);
+  background: var(--danger-soft);
+  padding: 12px 14px; border-radius: var(--radius-sm);
+  font-size: 14px;
+}
+.empty {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  color: var(--text-soft); text-align: center; padding: 60px 0;
+  border: 1px dashed var(--border-strong); border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 14px;
+}
+.empty-mark {
+  font-size: 28px; color: var(--text-faint);
+  width: 56px; height: 56px; line-height: 56px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+}
 
-/* 模态框 */
+.room-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.room-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px 18px;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-xs);
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, transform .1s;
+  animation: wc-rise 0.45s both;
+}
+.room-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
+.ri-left { display: flex; flex-direction: column; gap: 7px; align-items: flex-start; }
+.ri-code {
+  font-family: var(--font-mono); font-weight: 600; font-size: 14px;
+  letter-spacing: 2px;
+  background: var(--surface-2); color: var(--text);
+  padding: 4px 10px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+.ri-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ri-name {
+  font-family: var(--font-sans); font-weight: 600; font-size: 15px;
+  color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ri-meta { color: var(--text-faint); font-size: 12px; }
+.ri-actions { display: flex; gap: 6px; }
+.badge {
+  font-size: 12px; font-weight: 600; padding: 3px 9px;
+  border-radius: var(--radius-full); border: 1px solid transparent;
+  white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.badge.pub { background: var(--success-soft); color: var(--success); }
+.badge.priv { background: var(--primary-soft); color: var(--primary-hover); }
+
+.err { color: var(--danger); margin: 8px 0; font-size: 13px; font-weight: 500; }
+
+/* ===== 模态框 ===== */
 .modal-mask {
-  position: fixed; inset: 0; background: rgba(17, 24, 39, 0.5);
-  display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px;
+  position: fixed; inset: 0; z-index: 50; padding: 16px;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+  animation: wc-fade 0.18s both;
 }
-.modal { background: white; border-radius: 10px; padding: 24px; width: 100%; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-.modal h3 { margin: 0 0 16px; font-size: 16px; font-weight: 600; }
-.modal label { display: block; margin-bottom: 12px; }
-.modal label span { display: block; margin-bottom: 6px; color: #374151; font-size: 13px; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 26px;
+  width: 100%; max-width: 440px;
+  box-shadow: var(--shadow-lg);
+  animation: wc-pop 0.22s both;
+}
+.modal h3 {
+  margin: 0 0 20px;
+  font-family: var(--font-sans);
+  font-size: 18px; font-weight: 650;
+  display: flex; align-items: center; gap: 10px;
+}
+.m-tag {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.5px;
+  background: var(--primary-soft); color: var(--primary-hover);
+  padding: 3px 9px; border-radius: var(--radius-sm);
+}
+.m-tag.danger { background: var(--danger-soft); color: var(--danger); }
+.modal label { display: block; margin-bottom: 16px; }
+.modal label span {
+  display: block; margin-bottom: 7px;
+  color: var(--text-soft); font-size: 13px; font-weight: 500;
+}
 .modal input[type=text], .modal input:not([type]), .modal input[type=password] {
-  width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; outline: none; box-sizing: border-box;
+  width: 100%; padding: 10px 12px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-family: var(--font-sans); font-size: 14px; color: var(--text);
+  outline: none; box-sizing: border-box;
+  transition: border-color .15s, box-shadow .15s;
 }
-.modal input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15); }
-.modal input.code-input { text-transform: uppercase; letter-spacing: 4px; font-family: ui-monospace, monospace; }
-.modal label.check { display: flex; align-items: center; gap: 8px; }
+.modal input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-ring); }
+.modal input.code-input {
+  text-transform: uppercase; letter-spacing: 6px;
+  font-family: var(--font-mono);
+  font-weight: 600; text-align: center; font-size: 18px;
+}
+.modal label.check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .modal label.check span { margin: 0; }
-.modal label.check input { width: auto; }
-.modal .warn { color: #374151; font-size: 14px; line-height: 1.6; margin: 0 0 12px; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
-.code-tag { font-family: ui-monospace, monospace; background: #f3f4f6; padding: 2px 8px; border-radius: 4px; letter-spacing: 2px; font-weight: 600; font-size: 13px; }
+.modal label.check input { width: auto; accent-color: var(--primary); width: 16px; height: 16px; }
+.modal .warn { color: var(--text-soft); font-size: 14px; line-height: 1.65; margin: 0 0 16px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+.code-tag {
+  font-family: var(--font-mono); font-weight: 600;
+  background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border);
+  padding: 2px 8px; border-radius: var(--radius-sm); letter-spacing: 1px; font-size: 13px;
+}
 
-@media (max-width: 520px) {
+@media (max-width: 560px) {
   .topbar { align-items: flex-start; }
   .actions { width: 100%; }
   .actions .btn { flex: 1; }
-  .room-item { grid-template-columns: 1fr; }
-  .ri-actions { grid-column: 1; grid-row: auto; }
+  .room-item { grid-template-columns: 1fr; gap: 12px; }
+  .ri-actions { width: 100%; }
+  .ri-actions .btn { flex: 1; }
 }
 </style>
