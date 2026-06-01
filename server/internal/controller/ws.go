@@ -210,6 +210,10 @@ func (h *WS) Handle(r *ghttp.Request) {
 		}
 	}
 
+	// 先从 Hub 移除（Leave 持写锁，返回后房间 map 中已无本连接，
+	// 其他 goroutine 的 Broadcast 不会再向 client.Send 发送），再关闭 channel，
+	// 避免向已关闭的 channel 发送导致 panic。
+	hub.Default.Leave(code, client)
 	close(client.Send)
 	<-writerDone
 }

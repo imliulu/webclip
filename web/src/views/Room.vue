@@ -278,10 +278,17 @@ function triggerFileInput() {
 }
 
 async function onFileSelected(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
+  // 兼容两种来源：input change 事件取 input.files，drop 事件取 dataTransfer.files
+  let file: File | undefined
+  const dt = (e as DragEvent).dataTransfer
+  if (dt) {
+    file = dt.files?.[0]
+  } else {
+    const input = e.target as HTMLInputElement
+    file = input.files?.[0]
+    input.value = '' // reset，允许重复选择同一文件
+  }
   if (!file) return
-  input.value = '' // reset
 
   uploading.value = true
   uploadProgress.value = 0

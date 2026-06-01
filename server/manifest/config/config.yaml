@@ -2,6 +2,7 @@
 server:
   address: ":8080"
   serverRoot: "resource/public"
+  clientMaxBodySize: 536870912   # 512MB，需 >= s3.maxFileSize，否则大文件会在框架层被拒（默认仅 8MB）
   dumpRouterMap: true
   logPath: "./data/logs"
   sessionPath: "./data/sessions"
